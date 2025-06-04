@@ -1,3 +1,11 @@
+#Doodle Jump Clone
+#Name: ....
+
+#Controls:
+#'a' = left
+#'d' = right
+#'s' = retry
+
 .data
 	score_text_color: .word 0x000000	# Black color for score text
 	platform_array: .space 16			# Array to store platform positions (4 platforms * 4 bytes each)
@@ -23,7 +31,7 @@ main:
 	
 	li $t3, 0 # Initialize jump counter (0-17: jump up, 18+: fall down)
 	li $t4, 0 # Initialize score counter (increments when new platform created)
-	li $t5, 8 # Initialize difficulty level (8=easiest, 0=hardest, affects platform width)
+	li $t5, 5 # Initialize difficulty level (affects platform width)
 	# Difficulty increases every 10 points scored
 	li $t6, 1 # Helper variable for score-based difficulty progression
 	
@@ -49,8 +57,29 @@ redraw_game_screen:
 	jal fill_background_white # Clear screen with white background
 	
 	jal calculate_and_display_score # Update difficulty and prepare score display
+	
+	# Determine number of digits and center position
 	li $s0, 0 # Initialize screen position for score
-	addi $s0, $t0, 0  # Set score display position at top left of screen
+	bne $s3, 0, display_three_digits # If hundreds digit != 0, display 3 digits
+	bne $s4, 0, display_two_digits   # If tens digit != 0, display 2 digits
+	
+display_one_digit:
+	addi $s0, $t0, 60  # Center position for 1 digit (middle of 32-pixel width)
+	move $s6, $s5 # Move ones digit to display register
+	jal render_score_digit # Draw ones digit
+	j score_display_complete
+	
+display_two_digits:
+	addi $s0, $t0, 52  # Center position for 2 digits
+	move $s6, $s4 # Move tens digit to display register
+	jal render_score_digit # Draw tens digit
+	addi $s0, $s0, 16 # Move to next digit position
+	move $s6, $s5 # Move ones digit to display register
+	jal render_score_digit # Draw ones digit
+	j score_display_complete
+	
+display_three_digits:
+	addi $s0, $t0, 44  # Center position for 3 digits
 	move $s6, $s3 # Move hundreds digit to display register
 	jal render_score_digit # Draw hundreds digit
 	addi $s0, $s0, 16 # Move to next digit position
@@ -60,6 +89,7 @@ redraw_game_screen:
 	move $s6, $s5 # Move ones digit to display register
 	jal render_score_digit # Draw ones digit
 	
+score_display_complete:
 	jal render_all_platforms # Draw all platforms on screen
 	jal render_player_sprite # Draw player sprite
 	
@@ -352,20 +382,8 @@ calculate_and_display_score :
 	mflo $s4 # Store tens digit
 	mfhi $s5  # Store ones digit
 	
-	beq $s4, 0, score_calculation_complete # Skip difficulty update if tens digit is 0
-	beq $s5, 0,  increase_game_difficulty # If ones digit is 0, update difficulty
-	
 score_calculation_complete:
 	jr $ra # Return to caller
-
-# Function to increase difficulty when score reaches multiples of 10
-increase_game_difficulty:
-	beq $t5, 0, score_calculation_complete # Don't increase if already at max difficulty
-	bne $t6, $s4, score_calculation_complete # Only update when tens digit changes
-	addi $t6, $t6, 1 # Increment difficulty tracking variable
-	addi $t5, $t5, -1 # Decrease difficulty level (makes platforms narrower)
-	j score_calculation_complete # Return to score calculation
-
 
 # Function to render individual score digits on screen
 render_score_digit:
@@ -381,31 +399,6 @@ render_score_digit:
 	beq $s6, 9, draw_digit_nine # Branch to draw nine
 	addi $s0, $s0, 16 # Move to next digit position if invalid digit
 	jr $ra # Return to caller
-	
-	
-	
-	
-##########################################Final Message############################################
-    
-  ####################################Drawing score#######################################
-# Functions to draw each digit (0-9) using pixel patterns
-# draw_digit_zero:
-# Draw the upper horizontal line of zero
-	# lw $s1, score_text_color     # Load text color
-	# sw $s1, 0($s0)		# Draw top-left pixel
-	# sw $s1, 4($s0) # Draw top-center pixel
-	# sw $s1, 8($s0) # Draw top-right pixel
-# Draw left vertical line of zero
-	# sw $s1, 128($s0) # Draw left side pixel row 2
-	# sw $s1, 256($s0) # Draw left side pixel row 3
-	# sw $s1, 384($s0) # Draw left side pixel row 4
-	# sw $s1, 512($s0) # Draw left side pixel row 5
-# Draw lower horizontal line of zero
-	# sw $s1, 516($s0) # Draw bottom-center pixel
-	# sw $s1, 520($s0) # Draw bottom-right pixel
-	# sw $s1, 516($s0) # Draw bottom-center pixel
-	# sw $s1, 512($s0) # Draw bottom-left pixel
-	# jr $ra # Return to caller
 
 # Function to calculate score digits for end game display	
 calculate_final_score_display:
@@ -423,21 +416,39 @@ calculate_final_score_display:
 	mfhi $s5  # Store ones digit
 	
 	jr $ra # Return to caller
-
-
-
-####################################################### GAME OVER #############################################################
 	
 end_game_sequence:
 	# Fill entire screen with lava/game over color
 	jal fill_background_game_over # Paint background with lava color
-	add $s0, $t0, 276 # Set initial position for game over display
-		
-	###########################################
+	
+	# Display "GAME OVER" text
+	# jal draw_game_over_text
+	
 	# Display final score on end screen
 	jal calculate_final_score_display # Calculate digits for final score
+	
+	# Determine number of digits and center position for end game
 	li $s0, 0 # Reset screen position register
-	addi $s0, $t0, 2712 # Set position for final score display (center-ish of screen)
+	bne $s3, 0, end_display_three_digits # If hundreds digit != 0, display 3 digits
+	bne $s4, 0, end_display_two_digits   # If tens digit != 0, display 2 digits
+	
+end_display_one_digit:
+	addi $s0, $t0, 2772  # Center position for 1 digit in end screen
+	move $s6, $s5 # Move ones digit to display register
+	jal render_score_digit # Draw ones digit
+	j wait_for_restart
+	
+end_display_two_digits:
+	addi $s0, $t0, 2764  # Center position for 2 digits in end screen
+	move $s6, $s4 # Move tens digit to display register
+	jal render_score_digit # Draw tens digit
+	addi $s0, $s0, 16 # Move to next digit position
+	move $s6, $s5 # Move ones digit to display register
+	jal render_score_digit # Draw ones digit
+	j wait_for_restart
+	
+end_display_three_digits:
+	addi $s0, $t0, 2756  # Center position for 3 digits in end screen
 	move $s6, $s3 # Move hundreds digit to display register
 	jal render_score_digit # Draw hundreds digit
 	addi $s0, $s0, 16 # Move to next digit position
@@ -446,24 +457,40 @@ end_game_sequence:
 	addi $s0, $s0, 16 # Move to next digit position
 	move $s6, $s5 # Move ones digit to display register
 	jal render_score_digit # Draw ones digit
+
+wait_for_restart:
+	# Wait for 's' key to restart or any other key to exit
+	lw $s0, 0xffff0000 # Load keyboard control register
+	beq $s0, 1, check_restart_key # If key is pressed, check it
+	j wait_for_restart # Keep waiting for input
+	
+check_restart_key:
+	lw $s1, 0xffff0004 # Load the actual key value
+	beq $s1, 115, restart_game # If key is 's' (ASCII 115), restart game
 	li $v0, 10 # System call to terminate program
-	syscall # End program execution-right pixel
+	syscall # End program execution for any other key
+
+restart_game:
+	# Reset all game variables to initial state
+	li $t3, 0 # Reset jump counter
+	li $t4, 0 # Reset score counter
+	li $t5, 8 # Reset difficulty level
+	li $t6, 1 # Reset difficulty tracking variable
+	j main # Jump back to main to restart the game
+
+# Functions to draw each digit (0-9) using pixel patterns
 
 draw_digit_zero:
-#drawing the upper horizontal line
 	lw $s1, score_text_color     #Setting the color in $s1
 	sw $s1, 0($s0)		#Filling 
 	sw $s1, 4($s0)
 	sw $s1, 8($s0)
-#left vertical line
 	sw $s1, 128($s0)
 	sw $s1, 256($s0)
 	sw $s1, 384($s0)
 	sw $s1, 512($s0)
-#lower horizontal line
 	sw $s1, 516($s0)
 	sw $s1, 520($s0)
-#right vertical line
 	sw $s1, 392($s0)
 	sw $s1, 264($s0)
 	sw $s1, 136($s0)
